@@ -26,6 +26,17 @@ function App() {
   
 
 const [editingUser, setEditingUser] = useState(null);
+const [showUserForm, setShowUserForm] = useState(false);
+
+const [newUserForm, setNewUserForm] = useState({
+  full_name: "",
+  email: "",
+  password: "",
+  role: "citizen",
+  department_id: "",
+});
+
+const [newUserMessage, setNewUserMessage] = useState("");
 
 const [userForm, setUserForm] = useState({
   full_name: "",
@@ -560,7 +571,111 @@ const [userActionMessage, setUserActionMessage] = useState("");
 
     
 
+// ================================================
+// YENİ KULLANICI OLUŞTUR
+// ================================================
 
+const handleCreateUser = async () => {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    setNewUserMessage(
+      "Oturum bulunamadı. Lütfen tekrar giriş yap."
+    );
+    return false;
+  }
+
+  if (!newUserForm.full_name.trim()) {
+    setNewUserMessage(
+      "Ad soyad boş bırakılamaz."
+    );
+    return false;
+  }
+
+  if (!newUserForm.email.trim()) {
+    setNewUserMessage(
+      "Email boş bırakılamaz."
+    );
+    return false;
+  }
+
+  if (!newUserForm.password.trim()) {
+    setNewUserMessage(
+      "Şifre boş bırakılamaz."
+    );
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_URL}/users/`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          full_name: newUserForm.full_name.trim(),
+          email: newUserForm.email.trim(),
+          password: newUserForm.password,
+          role: newUserForm.role,
+          department_id:
+            newUserForm.department_id === ""
+              ? null
+              : Number(newUserForm.department_id),
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    console.log(
+      "CREATE USER RESPONSE:",
+      response.status,
+      data
+    );
+
+    if (!response.ok) {
+      setNewUserMessage(
+        typeof data.detail === "string"
+          ? data.detail
+          : "Kullanıcı oluşturulamadı."
+      );
+
+      return false;
+    }
+
+    setNewUserMessage(
+      `"${data.full_name}" kullanıcısı başarıyla oluşturuldu.`
+    );
+
+    await loadAdminData();
+
+    setNewUserForm({
+      full_name: "",
+      email: "",
+      password: "",
+      role: "citizen",
+      department_id: "",
+    });
+
+    return true;
+
+  } catch (error) {
+    console.error(
+      "Kullanıcı oluşturma hatası:",
+      error
+    );
+
+    setNewUserMessage(
+      "Kullanıcı oluşturulurken bir hata oluştu."
+    );
+
+    return false;
+  }
+};
 
 // ================================================
 // KULLANICI AKTİF / PASİF
@@ -617,6 +732,71 @@ const handleToggleUserStatus = async (userId) => {
 
     setActionMessage(
       "Kullanıcı durumu güncellenirken bir hata oluştu."
+    );
+  }
+};
+  // ================================================
+// KULLANICI SİL
+// ================================================
+
+const handleDeleteUser = async (userId, userName) => {
+  const confirmed = window.confirm(
+    `"${userName}" kullanıcısını silmek istediğine emin misin?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    setActionMessage(
+      "Oturum bulunamadı. Lütfen tekrar giriş yap."
+    );
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_URL}/users/${userId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const data =
+      response.status === 204
+        ? {}
+        : await response.json();
+
+    if (!response.ok) {
+      setActionMessage(
+        typeof data.detail === "string"
+          ? data.detail
+          : "Kullanıcı silinemedi."
+      );
+      return;
+    }
+
+    setActionMessage(
+      `"${userName}" kullanıcısı başarıyla silindi.`
+    );
+
+    await loadAdminData();
+
+  } catch (error) {
+    console.error(
+      "Kullanıcı silme hatası:",
+      error
+    );
+
+    setActionMessage(
+      "Kullanıcı silinirken bir hata oluştu."
     );
   }
 };
@@ -2009,20 +2189,43 @@ const handleToggleUserStatus = async (userId) => {
 
           <header className="dashboard-header">
 
-            <div>
+  <div>
 
-              <h1>
-                Kullanıcılar
-              </h1>
+    <h1>
+      Kullanıcılar
+    </h1>
 
-              <p>
-                Sistemde kayıtlı kullanıcılar
-              </p>
+    <p>
+      Sistemde kayıtlı kullanıcılar
+    </p>
 
-            </div>
+  </div>
+
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "16px",
+    }}
+  >
+
+    <button
+      type="button"
+      className="primary-button"
+      onClick={() => {
+        setShowUserForm(!showUserForm);
+        setNewUserMessage("");
+      }}
+    >
+      {showUserForm
+        ? "✕ İptal"
+        : "＋ Yeni Kullanıcı"}
+    </button>
 
 
-            <div className="user-info">
+    <div className="user-info">
+
+    </div>
 
               <div className="avatar">
                 {user.full_name
@@ -2048,6 +2251,164 @@ const handleToggleUserStatus = async (userId) => {
 
 
           <section className="content-card">
+            {showUserForm && (
+  <div className="edit-user-form">
+
+    <div className="edit-user-header">
+
+      <div>
+        <h3>Yeni Kullanıcı Oluştur</h3>
+        <p>
+          Sisteme yeni bir kullanıcı ekleyin.
+        </p>
+      </div>
+
+    </div>
+
+
+    {newUserMessage && (
+      <div className="action-message">
+        {newUserMessage}
+      </div>
+    )}
+
+
+    <div className="edit-user-grid">
+
+      <div className="form-group">
+        <label>Ad Soyad</label>
+
+        <input
+          type="text"
+          value={newUserForm.full_name}
+          onChange={(e) =>
+            setNewUserForm({
+              ...newUserForm,
+              full_name: e.target.value,
+            })
+          }
+          placeholder="Ad Soyad"
+        />
+      </div>
+
+
+      <div className="form-group">
+        <label>Email</label>
+
+        <input
+          type="email"
+          value={newUserForm.email}
+          onChange={(e) =>
+            setNewUserForm({
+              ...newUserForm,
+              email: e.target.value,
+            })
+          }
+          placeholder="ornek@email.com"
+        />
+      </div>
+
+
+      <div className="form-group">
+        <label>Şifre</label>
+
+        <input
+          type="password"
+          value={newUserForm.password}
+          onChange={(e) =>
+            setNewUserForm({
+              ...newUserForm,
+              password: e.target.value,
+            })
+          }
+          placeholder="Şifre"
+        />
+      </div>
+
+
+      <div className="form-group">
+        <label>Rol</label>
+
+        <select
+          value={newUserForm.role}
+          onChange={(e) =>
+            setNewUserForm({
+              ...newUserForm,
+              role: e.target.value,
+            })
+          }
+        >
+          <option value="admin">Admin</option>
+          <option value="manager">Manager</option>
+          <option value="employee">Employee</option>
+          <option value="citizen">Citizen</option>
+        </select>
+      </div>
+
+
+      <div className="form-group">
+        <label>Departman</label>
+
+        <select
+          value={newUserForm.department_id}
+          onChange={(e) =>
+            setNewUserForm({
+              ...newUserForm,
+              department_id: e.target.value,
+            })
+          }
+        >
+          <option value="">
+            Departman seçiniz
+          </option>
+
+          {departments.map((department) => (
+            <option
+              key={department.id}
+              value={department.id}
+            >
+              {department.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+    </div>
+
+
+    <div className="edit-user-actions">
+
+      <button
+        type="button"
+        className="primary-button"
+        onClick={async () => {
+          const success =
+            await handleCreateUser();
+
+          if (success) {
+            setShowUserForm(false);
+          }
+        }}
+      >
+        👤 Kullanıcı Oluştur
+      </button>
+
+
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => {
+          setShowUserForm(false);
+          setNewUserMessage("");
+        }}
+      >
+        Vazgeç
+      </button>
+
+    </div>
+
+  </div>
+)}
 
             <div className="content-header">
 
@@ -2143,20 +2504,33 @@ const handleToggleUserStatus = async (userId) => {
       </div>
 
       <div className="form-group">
-        <label>Departman ID</label>
+  <label>
+    Departman
+  </label>
 
-        <input
-          type="number"
-          value={userForm.department_id}
-          onChange={(e) =>
-            setUserForm({
-              ...userForm,
-              department_id: e.target.value,
-            })
-          }
-          placeholder="Boş bırakılabilir"
-        />
-      </div>
+  <select
+    value={userForm.department_id}
+    onChange={(e) =>
+      setUserForm({
+        ...userForm,
+        department_id: e.target.value,
+      })
+    }
+  >
+    <option value="">
+      Departman seçiniz
+    </option>
+
+    {departments.map((department) => (
+      <option
+        key={department.id}
+        value={department.id}
+      >
+        {department.name}
+      </option>
+    ))}
+  </select>
+</div>
 
     </div>
 
@@ -2326,6 +2700,21 @@ if (success) {
         : "🔓 Aktif Yap"}
     </button>
   )}
+  <button
+  type="button"
+  className="primary-button"
+  onClick={() =>
+    handleDeleteUser(
+      item.id,
+      item.full_name
+    )
+  }
+  style={{
+    background: "#dc2626",
+  }}
+>
+  🗑️ Sil
+</button>
 </div>
 
 
